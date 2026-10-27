@@ -1,0 +1,171 @@
+// The levels. Level 1 was built by hand to teach sliding and snow. The rest were found by a
+// solver-driven search (scripts/search.mjs), then picked and ordered by hand so each new mechanic
+// arrives on its own before it's combined with others.
+//
+// `par` is the length of the shortest solution. The tests re-derive it with the solver every
+// run, so a par here can never drift from what the level actually needs.
+
+export const LEVELS = [
+  {
+    name: 'Glide',
+    par: 2,
+    note: 'Ice keeps you going. Snow stops you.',
+    rows: [
+      '########',
+      '#@....,#',
+      '######.#',
+      '######E#',
+      '########',
+    ],
+  },
+  {
+    name: 'Five stones',
+    par: 5,
+    note: 'Rocks are brakes.',
+    rows: [
+      '########',
+      '#.#..E.#',
+      '#.....##',
+      '##.....#',
+      '#....#@#',
+      '########',
+    ],
+  },
+  {
+    name: 'Crossing',
+    par: 8,
+    rows: [
+      '########',
+      '#...#E.#',
+      '#....#.#',
+      '#......#',
+      '#,.#...#',
+      '#..@.#.#',
+      '########',
+    ],
+  },
+  {
+    name: 'First kick',
+    par: 4,
+    note: 'Walk into a crate to kick it. It slides like you do, and it makes a good brake.',
+    rows: [
+      '###########',
+      '##........#',
+      '#.........#',
+      '##........#',
+      '##........#',
+      '#...#...E.#',
+      '#.#.@..B..#',
+      '###########',
+    ],
+  },
+  {
+    name: 'Bridge',
+    par: 5,
+    note: 'A crate that slides into water sinks and freezes into snow.',
+    rows: [
+      '#########',
+      '#..B~...#',
+      '#.@.~#..#',
+      '#.#.~...#',
+      '#...~...#',
+      '#..B~...#',
+      '#...~..E#',
+      '#########',
+    ],
+  },
+  {
+    name: 'Thin ice',
+    par: 7,
+    note: 'Cracked ice breaks behind you.',
+    rows: [
+      '########',
+      '#.*@..##',
+      '##..*,.#',
+      '#.*.#..#',
+      '#.*#E..#',
+      '##*...*#',
+      '##.....#',
+      '########',
+    ],
+  },
+  {
+    name: 'Long way round',
+    par: 11,
+    rows: [
+      '############',
+      '#..@.......#',
+      '#......##.##',
+      '##......#..#',
+      '##......E#.#',
+      '###........#',
+      '#.....#....#',
+      '############',
+    ],
+  },
+  {
+    name: 'Placement',
+    par: 10,
+    rows: [
+      '##########',
+      '#....#...#',
+      '#...B.E.##',
+      '#........#',
+      '#.#.....@#',
+      '##########',
+    ],
+  },
+  {
+    name: 'Ferry',
+    par: 9,
+    rows: [
+      '#########',
+      '#.@.~..E#',
+      '#..B~...#',
+      '#...~...#',
+      '#.B.#...#',
+      '#########',
+    ],
+  },
+  {
+    name: 'Brittle',
+    par: 11,
+    rows: [
+      '###########',
+      '#.*..*...@#',
+      '#....,#...#',
+      '#.....##..#',
+      '#.*....E..#',
+      '#......#..#',
+      '#..#..#...#',
+      '###########',
+    ],
+  },
+  {
+    name: 'Crack and kick',
+    par: 10,
+    rows: [
+      '#########',
+      '#..*.##.#',
+      '#...*.#.#',
+      '#....*..#',
+      '#.#E#...#',
+      '#.@#.,*.#',
+      '#..B....#',
+      '#########',
+    ],
+  },
+  {
+    name: 'Thaw',
+    par: 14,
+    rows: [
+      '##########',
+      '#..@..~.E#',
+      '#...B.~#.#',
+      '##.B..~.##',
+      '#.....~..#',
+      '#.....~#.#',
+      '##########',
+    ],
+  },
+];
