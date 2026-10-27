@@ -1,0 +1,201 @@
+diff --git a/src/main.js b/src/main.js
+index 624eed9..49914da 100644
+--- a/src/main.js
++++ b/src/main.js
+@@ -10,6 +10,7 @@ const KEY_DIR = {
+ };
+ const UNDO_KEYS = new Set(['KeyZ', 'Backspace', 'KeyU']);
+ const BUTTONS = [
++  { id: 'hint', label: 'hint  h', x: W - 394, y: 18, w: 86, h: 30 },
+   { id: 'undo', label: 'undo  z', x: W - 300, y: 18, w: 86, h: 30 },
+   { id: 'restart', label: 'restart  r', x: W - 206, y: 18, w: 92, h: 30 },
+   { id: 'menu', label: 'levels', x: W - 106, y: 18, w: 80, h: 30 },
+@@ -71,6 +72,7 @@ class Game {
+       case 'play':
+         if (cmd === 'dir') ses.input(arg, now);
+         else if (cmd === 'undo') ses.undo(now);
++        else if (cmd === 'hint') ses.requestHint();
+         else if (cmd === 'restart') ses.restart();
+         else if (cmd === 'menu') ses.menu();
+         break;
+@@ -93,6 +95,7 @@ class Game {
+     if (e.repeat) return;
+     if (UNDO_KEYS.has(e.code)) this.command('undo');
+     else if (e.code === 'KeyR') this.command('restart');
++    else if (e.code === 'KeyH') this.command('hint');
+     else if (e.code === 'Escape' || e.code === 'KeyL') this.command('menu');
+     else if (e.code === 'Enter' || e.code === 'Space') this.command('confirm');
+   }
+@@ -142,6 +145,7 @@ class Game {
+     if (edge(0)) this.command('confirm');
+     if (edge(1)) this.command('undo');
+     if (edge(3)) this.command('restart');
++    if (edge(2)) this.command('hint');
+     if (edge(9)) this.command('menu');
+     this.padPrev = b;
+   }
+@@ -184,6 +188,11 @@ class Game {
+         continue;
+       }
+       if (e.type === 'done') continue;
++      if (e.type === 'hint') {
++        if (e.dir) this.sfx.select();
++        else this.sfx.bump();
++        continue;
++      }
+       if ((e.type === 'slide' || e.type === 'kick' || e.type === 'bump') && group.length) flush();
+       group.push(e);
+     }
+diff --git a/src/render.js b/src/render.js
+index 96ac136..ff3ddde 100644
+--- a/src/render.js
++++ b/src/render.js
+@@ -199,6 +199,7 @@ export function drawBoard(ctx, ses, v, time) {
+   for (let y = 0; y < g.h; y++) for (let x = 0; x < g.w; x++) drawTile(ctx, v.tiles[y * g.w + x], ox + x * s, oy + y * s, s, time, y * g.w + x);
+   for (const c of v.crates) drawCrate(ctx, ox + c.x * s, oy + c.y * s, s);
+   drawPlayer(ctx, ox + v.player.x * s, oy + v.player.y * s, s, v.face, v.squash);
++  if (ses.hint && !v.anims.length) drawHintArrow(ctx, ox + g.player.x * s + s / 2, oy + g.player.y * s + s / 2, s, ses.hint, time);
+   for (const p of v.particles) {
+     ctx.globalAlpha = Math.max(0, p.life / p.max);
+     ctx.fillStyle = p.color;
+@@ -207,12 +208,31 @@ export function drawBoard(ctx, ses, v, time) {
+   ctx.globalAlpha = 1;
+ }
+ 
++const ARROW = { up: [0, -1], right: [1, 0], down: [0, 1], left: [-1, 0] };
++
++function drawHintArrow(ctx, cx, cy, s, dir, time) {
++  const [dx, dy] = ARROW[dir];
++  const bob = Math.sin(time * 6) * s * 0.06;
++  ctx.save();
++  ctx.translate(cx + dx * (s * 0.75 + bob), cy + dy * (s * 0.75 + bob));
++  ctx.rotate(Math.atan2(dy, dx));
++  ctx.fillStyle = C.warm;
++  ctx.beginPath();
++  ctx.moveTo(s * 0.22, 0);
++  ctx.lineTo(-s * 0.12, -s * 0.18);
++  ctx.lineTo(-s * 0.12, s * 0.18);
++  ctx.closePath();
++  ctx.fill();
++  ctx.restore();
++}
++
+ export function drawHud(ctx, ses, buttons) {
+   const L = ses.levels[ses.level];
+   text(ctx, `${ses.level + 1}`, 28, 34, { size: 28, weight: 'bold', font: FONT.serif });
+   text(ctx, L.name, 60, 28, { size: 18, font: FONT.serif, style: 'italic' });
+-  text(ctx, `moves ${ses.game.moves}  ·  par ${L.par}`, 60, 48, { size: 12, color: C.dim });
+-  if (L.note && ses.game.moves === 0) text(ctx, L.note, W / 2, H - 26, { size: 15, align: 'center', font: FONT.serif, style: 'italic', color: C.dim });
++  text(ctx, `moves ${ses.game.moves}  ·  par ${L.par}${ses.hinted ? '  ·  hint used' : ''}`, 60, 48, { size: 12, color: C.dim });
++  if (ses.stuck) text(ctx, 'no way out from here. undo or restart.', W / 2, H - 26, { size: 15, align: 'center', font: FONT.serif, style: 'italic', color: C.scarf });
++  else if (L.note && ses.game.moves === 0) text(ctx, L.note, W / 2, H - 26, { size: 15, align: 'center', font: FONT.serif, style: 'italic', color: C.dim });
+   for (const b of buttons) {
+     ctx.fillStyle = 'rgba(255,255,255,0.55)';
+     ctx.fillRect(b.x, b.y, b.w, b.h);
+@@ -252,7 +272,7 @@ export function drawSelect(ctx, ses, cursor, cells, time) {
+     text(ctx, open ? ses.levels[i].name : 'locked', c.x + 14, c.y + 48, { size: 12, font: FONT.serif, style: 'italic', color: open ? C.ink : C.dim });
+     if (open) drawStars(ctx, c.x + c.w - 36, c.y + 22, ses.progress[i] ?? 0, 6);
+   });
+-  text(ctx, 'arrows to choose · enter to play · z undo · r restart · esc levels', W / 2, H - 28, { size: 12, align: 'center', color: C.dim, alpha: 0.7 + 0.3 * Math.sin(time * 2) });
++  text(ctx, 'arrows to choose · enter to play · z undo · r restart · h hint · esc levels', W / 2, H - 28, { size: 12, align: 'center', color: C.dim, alpha: 0.7 + 0.3 * Math.sin(time * 2) });
+ }
+ 
+ export function drawWon(ctx, ses, t) {
+@@ -265,7 +285,7 @@ export function drawWon(ctx, ses, t) {
+   const r = ses.result;
+   text(ctx, 'warm at last.', W / 2, 190, { size: 26, align: 'center', font: FONT.serif, style: 'italic', alpha: a });
+   drawStars(ctx, W / 2, 245, Math.min(r.stars, Math.floor(t * 6)), 18);
+-  text(ctx, `${r.moves} moves  ·  par ${r.par}`, W / 2, 294, { size: 14, align: 'center', alpha: a });
++  text(ctx, `${r.moves} moves  ·  par ${r.par}${r.hinted ? '  ·  hint used' : ''}`, W / 2, 294, { size: 14, align: 'center', alpha: a });
+   const last = ses.level === ses.levels.length - 1;
+   text(ctx, last ? 'enter: finish  ·  r: retry' : 'enter: next  ·  r: retry  ·  esc: levels', W / 2, 346, { size: 12, align: 'center', color: C.dim, alpha: a });
+ }
+diff --git a/src/session.js b/src/session.js
+index 6ac6f7f..b14187d 100644
+--- a/src/session.js
++++ b/src/session.js
+@@ -4,6 +4,7 @@
+ 
+ import { parseLevel, move, cloneState } from './rules.js';
+ import { LEVELS } from './levels.js';
++import { solve } from './solver.js';
+ 
+ export const QUEUE_MAX = 3;
+ 
+@@ -12,8 +13,9 @@ export const TIMING = {
+   min: 110, // shortest animation for any move
+ };
+ 
+-export function stars(moves, par) {
+-  if (moves <= par) return 3;
++// A level finished with a hint can earn at most 2 stars.
++export function stars(moves, par, hinted = false) {
++  if (moves <= par) return hinted ? 2 : 3;
+   if (moves <= Math.ceil(par * 1.5)) return 2;
+   return 1;
+ }
+@@ -35,6 +37,9 @@ export class Session {
+     this.history = [];
+     this.busyUntil = 0;
+     this.queue = []; // moves pressed during an animation, played in order as each one ends
++    this.hint = null; // the suggested next move, shown until the player moves
++    this.hinted = false; // any hint used on this attempt
++    this.stuck = false; // a hint found no way out from the current state
+     this.events = [];
+     this.result = null;
+   }
+@@ -49,6 +54,9 @@ export class Session {
+     this.history = [];
+     this.busyUntil = 0;
+     this.queue = [];
++    this.hint = null;
++    this.hinted = false;
++    this.stuck = false;
+     this.result = null;
+     this.screen = 'play';
+     this.events.push({ type: 'start', level: i });
+@@ -72,6 +80,8 @@ export class Session {
+     this.events.push(...r.events);
+     if (!r.moved) return false;
+     this.history.push(before);
++    this.hint = null;
++    this.stuck = false;
+     this.busyUntil = now + moveDuration(r.events);
+     return true;
+   }
+@@ -88,12 +98,24 @@ export class Session {
+     while (this.queue.length && !this.apply(this.queue.shift(), now));
+   }
+ 
++  // Solve from where the player stands and suggest the first move of a shortest solution.
++  // If the room can no longer be solved from here, say so instead (undo or restart will help).
++  requestHint() {
++    if (this.screen !== 'play' || this.game.won) return null;
++    const { solution } = solve(cloneState(this.game));
++    this.hint = solution ? solution[0] : null;
++    this.stuck = !solution;
++    if (solution) this.hinted = true;
++    this.events.push({ type: 'hint', dir: this.hint, remaining: solution ? solution.length : null });
++    return this.hint;
++  }
++
+   finish() {
+     const par = this.levels[this.level].par;
+-    const earned = stars(this.game.moves, par);
++    const earned = stars(this.game.moves, par, this.hinted);
+     const best = Math.max(this.progress[this.level] ?? 0, earned);
+     this.progress[this.level] = best;
+-    this.result = { moves: this.game.moves, par, stars: earned, best };
++    this.result = { moves: this.game.moves, par, stars: earned, best, hinted: this.hinted };
+     this.screen = 'won';
+     this.events.push({ type: 'complete', level: this.level, ...this.result });
+   }
+@@ -102,6 +124,8 @@ export class Session {
+     if (this.screen !== 'play' || !this.history.length) return false;
+     this.game = this.history.pop();
+     this.queue = [];
++    this.hint = null;
++    this.stuck = false;
+     this.busyUntil = now;
+     this.events.push({ type: 'undo' });
+     return true;

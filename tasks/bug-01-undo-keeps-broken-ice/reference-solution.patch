@@ -1,0 +1,50 @@
+diff --git b/src/session.js a/src/session.js
+index 59475d3..6ac6f7f 100644
+--- b/src/session.js
++++ a/src/session.js
+@@ -2,7 +2,7 @@
+ // progress, and pacing input against the slide animation. Pure: time is passed in, nothing reads
+ // a clock or the DOM, so the tests can drive a whole play session deterministically.
+ 
+-import { parseLevel, move } from './rules.js';
++import { parseLevel, move, cloneState } from './rules.js';
+ import { LEVELS } from './levels.js';
+ 
+ export const QUEUE_MAX = 3;
+@@ -67,7 +67,7 @@ export class Session {
+ 
+   apply(dir, now) {
+     if (this.game.won) return false;
+-    const before = { ...this.game, player: { ...this.game.player }, crates: [...this.game.crates] }; // snapshot for undo
++    const before = cloneState(this.game);
+     const r = move(this.game, dir);
+     this.events.push(...r.events);
+     if (!r.moved) return false;
+diff --git b/test/thaw.test.js a/test/thaw.test.js
+index 1b3ba2b..47a2a91 100644
+--- b/test/thaw.test.js
++++ a/test/thaw.test.js
+@@ -124,6 +124,23 @@ test('a move pressed mid-slide plays when the slide ends', () => {
+   assert.equal(ses.game.moves, 2);
+ });
+ 
++test('undo restores the previous state exactly, cracked ice included', () => {
++  const ses = new Session();
++  const i = LEVELS.findIndex((l) => l.name === 'Thin ice');
++  ses.start(i);
++  const start = cloneState(ses.game);
++  let t = 0;
++  for (const d of solve(parseLevel(LEVELS[i].rows)).solution.slice(0, -1)) {
++    ses.input(d, t);
++    t = ses.busyUntil;
++  }
++  assert.notDeepEqual([...ses.game.tiles], [...start.tiles], 'some ice broke');
++  while (ses.undo(t));
++  assert.deepEqual([...ses.game.tiles], [...start.tiles]);
++  assert.deepEqual(ses.game.player, start.player);
++  assert.equal(ses.game.moves, 0);
++});
++
+ test('winning waits for the slide to finish, then scores and unlocks the next level', () => {
+   const ses = new Session();
+   ses.start(0);

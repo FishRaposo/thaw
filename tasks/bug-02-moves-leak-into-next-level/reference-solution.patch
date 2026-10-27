@@ -1,0 +1,12 @@
+diff --git b/src/session.js a/src/session.js
+index df2eb89..6ac6f7f 100644
+--- b/src/session.js
++++ a/src/session.js
+@@ -48,6 +48,7 @@ export class Session {
+     this.game = parseLevel(this.levels[i].rows);
+     this.history = [];
+     this.busyUntil = 0;
++    this.queue = [];
+     this.result = null;
+     this.screen = 'play';
+     this.events.push({ type: 'start', level: i });
