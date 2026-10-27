@@ -16,7 +16,7 @@ You can't stop where you want. Every puzzle in an ice-sliding game is the same q
 
 ## Decisions
 
-**Each mechanic arrives alone.** Levels 1 to 6 introduce the elements one at a time (sliding and snow, rocks, crates, water, cracked ice), each with a one-line note on the board until the first move. Levels 7 to 12 combine them. The par curve rises from 2 to 14, but not monotonically: each new mechanic's first room is easy again.
+**Each mechanic arrives alone.** Levels 1 to 6 introduce the elements one at a time (sliding and snow, rocks, crates, water, cracked ice). Each new mechanic has a one-line note on the board until the first move. Crossing, between the rocks and the crates, is the practice room and has no note. Levels 7 to 12 combine them. The par curve rises from 2 to 14, but not monotonically: each new mechanic's first room is easy again.
 
 **Crates are brakes, not just bridges.** The crate tutorial is solved by kicking the crate away and using it as a stop, not by pushing it somewhere obvious. A test enforces that every level with crates needs them: with the crates removed, each of those rooms is unsolvable or takes more moves.
 
