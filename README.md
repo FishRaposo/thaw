@@ -6,6 +6,8 @@ An ice-sliding puzzle game in twelve rooms, with a solver that proves every one 
 
 You slide until something stops you. Ice keeps you going; snow, rock and crates stop you. Kick a crate and it slides by the same rules; slide one into water and it sinks and freezes into a snow tile you can stand on. Cracked ice breaks behind whatever leaves it. Reach the hut in as few moves as you can: par earns three stars.
 
+Designed and built with AI assistance (Claude) to Vinícius Raposo's brief, then tested like production software.
+
 **Project page:** [fishraposo.github.io/projects/thaw.html](https://fishraposo.github.io/projects/thaw.html)
 
 **Play:** in the browser on itch.io *(link added after upload)*, or run it locally:
