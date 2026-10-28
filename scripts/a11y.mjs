@@ -36,10 +36,13 @@ await page.keyboard.press('KeyO');
 await page.waitForSelector('dialog[open]');
 await scan('settings dialog');
 await page.locator('dialog .actions button').last().click();
+await page.waitForSelector('dialog', { state: 'detached' });
 
 const cell = await page.evaluate(() => window.__thaw.cells[0]);
+await page.evaluate(() => document.getElementById('game')?.focus());
 await page.mouse.click(cell.x + cell.w / 2, cell.y + cell.h / 2);
 await page.waitForFunction(() => window.__thaw.ses.screen === 'play', undefined, { timeout: 5000 });
+await page.waitForTimeout(150);
 await page.keyboard.press('Escape');
 await page.waitForSelector('dialog[open]');
 await scan('pause dialog');
