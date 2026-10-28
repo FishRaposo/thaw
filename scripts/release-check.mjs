@@ -28,9 +28,11 @@ if (!allowDirty) {
 }
 
 if (!process.argv.includes('--skip-gates')) {
-  const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-  const gates = spawnSync(npm, ['run', 'verify'], { cwd: root, stdio: 'inherit' });
-  if (gates.status !== 0) errors.push('verify failed');
+  const gates = process.platform === 'win32'
+    ? spawnSync('npm run verify', { cwd: root, stdio: 'inherit', shell: true })
+    : spawnSync('npm', ['run', 'verify'], { cwd: root, stdio: 'inherit' });
+  if (gates.error) errors.push(`verify failed to start: ${gates.error.message}`);
+  else if (gates.status !== 0) errors.push(`verify failed (exit ${gates.status})`);
 }
 
 if (errors.length) {
