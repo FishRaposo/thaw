@@ -10,7 +10,7 @@ Designed and built with AI assistance (Claude) to Vinícius Raposo's brief, then
 
 **Project page:** [fishraposo.github.io/projects/thaw.html](https://fishraposo.github.io/projects/thaw.html)
 
-**Play:** [in the browser](https://fishraposo.github.io/thaw/), or run it locally:
+**Play:** [on itch.io](https://fishraposo.itch.io/thaw) or [the GitHub Pages build](https://fishraposo.github.io/thaw/), both in the browser, or run it locally:
 
 ```bash
 git clone https://github.com/FishRaposo/thaw.git
