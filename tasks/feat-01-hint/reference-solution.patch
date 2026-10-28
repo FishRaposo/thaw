@@ -1,70 +1,80 @@
-diff --git a/src/main.js b/src/main.js
-index 624eed9..49914da 100644
---- a/src/main.js
-+++ b/src/main.js
-@@ -10,6 +10,7 @@ const KEY_DIR = {
+diff --git a/src/main.ts b/src/main.ts
+index 272b668..b6f7394 100644
+--- a/src/main.ts
++++ b/src/main.ts
+@@ -19,6 +19,7 @@ const KEY_DIR: Record<string, Dir> = {
  };
  const UNDO_KEYS = new Set(['KeyZ', 'Backspace', 'KeyU']);
- const BUTTONS = [
+ const BUTTONS: Button[] = [
 +  { id: 'hint', label: 'hint  h', x: W - 394, y: 18, w: 86, h: 30 },
    { id: 'undo', label: 'undo  z', x: W - 300, y: 18, w: 86, h: 30 },
    { id: 'restart', label: 'restart  r', x: W - 206, y: 18, w: 92, h: 30 },
    { id: 'menu', label: 'levels', x: W - 106, y: 18, w: 80, h: 30 },
-@@ -71,6 +72,7 @@ class Game {
+@@ -300,6 +301,7 @@ class Game {
        case 'play':
-         if (cmd === 'dir') ses.input(arg, now);
+         if (cmd === 'dir' && arg) ses.input(arg, now);
          else if (cmd === 'undo') ses.undo(now);
 +        else if (cmd === 'hint') ses.requestHint();
          else if (cmd === 'restart') ses.restart();
-         else if (cmd === 'menu') ses.menu();
-         break;
-@@ -93,6 +95,7 @@ class Game {
+         else if (cmd === 'menu') {
+           ses.menu();
+@@ -357,6 +359,7 @@ class Game {
      if (e.repeat) return;
      if (UNDO_KEYS.has(e.code)) this.command('undo');
      else if (e.code === 'KeyR') this.command('restart');
 +    else if (e.code === 'KeyH') this.command('hint');
-     else if (e.code === 'Escape' || e.code === 'KeyL') this.command('menu');
+     else if (e.code === 'KeyL') this.command('menu');
      else if (e.code === 'Enter' || e.code === 'Space') this.command('confirm');
    }
-@@ -142,6 +145,7 @@ class Game {
-     if (edge(0)) this.command('confirm');
-     if (edge(1)) this.command('undo');
-     if (edge(3)) this.command('restart');
+@@ -423,6 +426,7 @@ class Game {
+       if (edge(15)) this.command('dir', 'right');
+       if (edge(0)) this.command('confirm');
+       if (edge(1)) this.command('undo');
 +    if (edge(2)) this.command('hint');
-     if (edge(9)) this.command('menu');
-     this.padPrev = b;
-   }
-@@ -184,6 +188,11 @@ class Game {
+       if (edge(2)) this.pause();
+       if (edge(3)) this.command('restart');
+       if (edge(9)) this.command('menu');
+@@ -478,6 +482,11 @@ class Game {
+         this.menus.announce(`Won ${this.ses.pack.levels[this.ses.level].name} with ${e.stars} stars`);
          continue;
        }
-       if (e.type === 'done') continue;
 +      if (e.type === 'hint') {
 +        if (e.dir) this.sfx.select();
 +        else this.sfx.bump();
 +        continue;
 +      }
-       if ((e.type === 'slide' || e.type === 'kick' || e.type === 'bump') && group.length) flush();
-       group.push(e);
-     }
-diff --git a/src/render.js b/src/render.js
-index 96ac136..ff3ddde 100644
---- a/src/render.js
-+++ b/src/render.js
-@@ -199,6 +199,7 @@ export function drawBoard(ctx, ses, v, time) {
-   for (let y = 0; y < g.h; y++) for (let x = 0; x < g.w; x++) drawTile(ctx, v.tiles[y * g.w + x], ox + x * s, oy + y * s, s, time, y * g.w + x);
+       if (e.type === 'done') {
+         this.menus.announce('Every room thawed');
+         continue;
+
+diff --git a/src/presentation/render.ts b/src/presentation/render.ts
+index 1cf8ab8..2b59475 100644
+--- a/src/presentation/render.ts
++++ b/src/presentation/render.ts
+@@ -1,7 +1,7 @@
+ // Drawing only. Reads the session plus a small "view" of animation state; never changes the game.
+ 
+ import { T } from '../core/rules.ts';
+-import type { Cell, GameState, Tile } from '../core/rules.ts';
++import type { Cell, Dir, GameState, Tile } from '../core/rules.ts';
+ import type { Session } from '../core/session.ts';
+ 
+ export const W = 960;
+@@ -287,6 +287,7 @@ export function drawBoard(ctx: CanvasRenderingContext2D, ses: Session, v: View,
+   for (let y = 0; y < g.h; y++) for (let x = 0; x < g.w; x++) drawTile(ctx, v.tiles[y * g.w + x] as Tile, ox + x * s, oy + y * s, s, time, y * g.w + x);
    for (const c of v.crates) drawCrate(ctx, ox + c.x * s, oy + c.y * s, s);
    drawPlayer(ctx, ox + v.player.x * s, oy + v.player.y * s, s, v.face, v.squash);
 +  if (ses.hint && !v.anims.length) drawHintArrow(ctx, ox + g.player.x * s + s / 2, oy + g.player.y * s + s / 2, s, ses.hint, time);
    for (const p of v.particles) {
      ctx.globalAlpha = Math.max(0, p.life / p.max);
      ctx.fillStyle = p.color;
-@@ -207,12 +208,31 @@ export function drawBoard(ctx, ses, v, time) {
+@@ -295,14 +296,33 @@ export function drawBoard(ctx: CanvasRenderingContext2D, ses: Session, v: View,
    ctx.globalAlpha = 1;
  }
  
-+const ARROW = { up: [0, -1], right: [1, 0], down: [0, 1], left: [-1, 0] };
++const ARROW: Record<Dir, Cell> = { up: [0, -1], right: [1, 0], down: [0, 1], left: [-1, 0] };
 +
-+function drawHintArrow(ctx, cx, cy, s, dir, time) {
++function drawHintArrow(ctx: CanvasRenderingContext2D, cx: number, cy: number, s: number, dir: Dir, time: number): void {
 +  const [dx, dy] = ARROW[dir];
 +  const bob = Math.sin(time * 6) * s * 0.06;
 +  ctx.save();
@@ -80,29 +90,31 @@ index 96ac136..ff3ddde 100644
 +  ctx.restore();
 +}
 +
- export function drawHud(ctx, ses, buttons) {
+ export function drawHud(ctx: CanvasRenderingContext2D, ses: Session, buttons: Button[]): void {
+   const g = ses.game;
+   if (!g) return;
    const L = ses.levels[ses.level];
    text(ctx, `${ses.level + 1}`, 28, 34, { size: 28, weight: 'bold', font: FONT.serif });
    text(ctx, L.name, 60, 28, { size: 18, font: FONT.serif, style: 'italic' });
--  text(ctx, `moves ${ses.game.moves}  ·  par ${L.par}`, 60, 48, { size: 12, color: C.dim });
--  if (L.note && ses.game.moves === 0) text(ctx, L.note, W / 2, H - 26, { size: 15, align: 'center', font: FONT.serif, style: 'italic', color: C.dim });
-+  text(ctx, `moves ${ses.game.moves}  ·  par ${L.par}${ses.hinted ? '  ·  hint used' : ''}`, 60, 48, { size: 12, color: C.dim });
+-  text(ctx, `moves ${g.moves}  ·  par ${L.par}`, 60, 48, { size: 12, color: C.dim });
+-  if (L.note && g.moves === 0) text(ctx, L.note, W / 2, H - 26, { size: 15, align: 'center', font: FONT.serif, style: 'italic', color: C.dim });
++  text(ctx, `moves ${g.moves}  ·  par ${L.par}${ses.hinted ? '  ·  hint used' : ''}`, 60, 48, { size: 12, color: C.dim });
 +  if (ses.stuck) text(ctx, 'no way out from here. undo or restart.', W / 2, H - 26, { size: 15, align: 'center', font: FONT.serif, style: 'italic', color: C.scarf });
-+  else if (L.note && ses.game.moves === 0) text(ctx, L.note, W / 2, H - 26, { size: 15, align: 'center', font: FONT.serif, style: 'italic', color: C.dim });
++  else if (L.note && g.moves === 0) text(ctx, L.note, W / 2, H - 26, { size: 15, align: 'center', font: FONT.serif, style: 'italic', color: C.dim });
    for (const b of buttons) {
      ctx.fillStyle = 'rgba(255,255,255,0.55)';
      ctx.fillRect(b.x, b.y, b.w, b.h);
-@@ -252,7 +272,7 @@ export function drawSelect(ctx, ses, cursor, cells, time) {
+@@ -357,7 +377,7 @@ export function drawSelect(ctx: CanvasRenderingContext2D, ses: Session, cursor:
      text(ctx, open ? ses.levels[i].name : 'locked', c.x + 14, c.y + 48, { size: 12, font: FONT.serif, style: 'italic', color: open ? C.ink : C.dim });
-     if (open) drawStars(ctx, c.x + c.w - 36, c.y + 22, ses.progress[i] ?? 0, 6);
+     if (open) drawStars(ctx, c.x + c.w - 36, c.y + 22, ses.progress[ses.levels[i].id] ?? 0, 6);
    });
--  text(ctx, 'arrows to choose · enter to play · z undo · r restart · esc levels', W / 2, H - 28, { size: 12, align: 'center', color: C.dim, alpha: 0.7 + 0.3 * Math.sin(time * 2) });
-+  text(ctx, 'arrows to choose · enter to play · z undo · r restart · h hint · esc levels', W / 2, H - 28, { size: 12, align: 'center', color: C.dim, alpha: 0.7 + 0.3 * Math.sin(time * 2) });
+-  text(ctx, 'arrows choose · enter play · [ ] pack · c continue · o settings', W / 2, H - 22, { size: 12, align: 'center', color: C.dim, alpha: 0.7 + 0.3 * Math.sin(time * 2) });
++  text(ctx, 'arrows choose · enter play · [ ] pack · c continue · h hint · o settings', W / 2, H - 22, { size: 12, align: 'center', color: C.dim, alpha: 0.7 + 0.3 * Math.sin(time * 2) });
  }
  
- export function drawWon(ctx, ses, t) {
-@@ -265,7 +285,7 @@ export function drawWon(ctx, ses, t) {
-   const r = ses.result;
+ export function drawWon(ctx: CanvasRenderingContext2D, ses: Session, t: number): void {
+@@ -371,7 +391,7 @@ export function drawWon(ctx: CanvasRenderingContext2D, ses: Session, t: number):
+   ctx.restore();
    text(ctx, 'warm at last.', W / 2, 190, { size: 26, align: 'center', font: FONT.serif, style: 'italic', alpha: a });
    drawStars(ctx, W / 2, 245, Math.min(r.stars, Math.floor(t * 6)), 18);
 -  text(ctx, `${r.moves} moves  ·  par ${r.par}`, W / 2, 294, { size: 14, align: 'center', alpha: a });
@@ -110,41 +122,41 @@ index 96ac136..ff3ddde 100644
    const last = ses.level === ses.levels.length - 1;
    text(ctx, last ? 'enter: finish  ·  r: retry' : 'enter: next  ·  r: retry  ·  esc: levels', W / 2, 346, { size: 12, align: 'center', color: C.dim, alpha: a });
  }
-diff --git a/src/session.js b/src/session.js
-index 6ac6f7f..b14187d 100644
---- a/src/session.js
-+++ b/src/session.js
-@@ -4,6 +4,7 @@
+
+diff --git a/src/core/session.ts b/src/core/session.ts
+index 15f9609..d42e795 100644
+--- a/src/core/session.ts
++++ b/src/core/session.ts
+@@ -3,6 +3,7 @@
+ // a clock or the DOM, so the tests can drive a whole play session deterministically.
  
- import { parseLevel, move, cloneState } from './rules.js';
- import { LEVELS } from './levels.js';
-+import { solve } from './solver.js';
+ import { parseLevel, move, cloneState } from './rules.ts';
++import { solve } from './solver.ts';
+ import type { Dir, GameEvent, GameState } from './rules.ts';
+ import type { LevelDef, LevelPack, PackProgress } from './types.ts';
  
- export const QUEUE_MAX = 3;
+@@ -49,8 +50,8 @@ export interface SessionOptions {
+   progress?: PackProgress;
+ }
  
-@@ -12,8 +13,9 @@ export const TIMING = {
-   min: 110, // shortest animation for any move
- };
- 
--export function stars(moves, par) {
+-export function stars(moves: number, par: number): number {
 -  if (moves <= par) return 3;
-+// A level finished with a hint can earn at most 2 stars.
-+export function stars(moves, par, hinted = false) {
++export function stars(moves: number, par: number, hinted = false): number {
 +  if (moves <= par) return hinted ? 2 : 3;
    if (moves <= Math.ceil(par * 1.5)) return 2;
    return 1;
  }
-@@ -35,6 +37,9 @@ export class Session {
-     this.history = [];
-     this.busyUntil = 0;
-     this.queue = []; // moves pressed during an animation, played in order as each one ends
-+    this.hint = null; // the suggested next move, shown until the player moves
-+    this.hinted = false; // any hint used on this attempt
-+    this.stuck = false; // a hint found no way out from the current state
-     this.events = [];
-     this.result = null;
-   }
-@@ -49,6 +54,9 @@ export class Session {
+@@ -73,6 +74,9 @@ export class Session {
+   queue: Dir[];
+   events: SessionEvent[];
+   result: SessionResult | null;
++  hint: Dir | null = null; // the suggested next move, shown until the player moves
++  hinted = false; // any hint used on this attempt
++  stuck = false; // a hint found no way out from the current state
+ 
+   constructor({ pack, progress = {} }: SessionOptions) {
+     this.pack = pack;
+@@ -101,6 +105,9 @@ export class Session {
      this.history = [];
      this.busyUntil = 0;
      this.queue = [];
@@ -154,7 +166,7 @@ index 6ac6f7f..b14187d 100644
      this.result = null;
      this.screen = 'play';
      this.events.push({ type: 'start', level: i });
-@@ -72,6 +80,8 @@ export class Session {
+@@ -138,6 +145,8 @@ export class Session {
      this.events.push(...r.events);
      if (!r.moved) return false;
      this.history.push(before);
@@ -163,15 +175,16 @@ index 6ac6f7f..b14187d 100644
      this.busyUntil = now + moveDuration(r.events);
      return true;
    }
-@@ -88,12 +98,24 @@ export class Session {
-     while (this.queue.length && !this.apply(this.queue.shift(), now));
+@@ -156,11 +165,24 @@ export class Session {
+     while (this.queue.length && !this.apply(this.queue.shift()!, now));
    }
  
 +  // Solve from where the player stands and suggest the first move of a shortest solution.
 +  // If the room can no longer be solved from here, say so instead (undo or restart will help).
-+  requestHint() {
-+    if (this.screen !== 'play' || this.game.won) return null;
-+    const { solution } = solve(cloneState(this.game));
++  requestHint(): Dir | null {
++    const game = this.game;
++    if (this.screen !== 'play' || !game || game.won) return null;
++    const { solution } = solve(cloneState(game));
 +    this.hint = solution ? solution[0] : null;
 +    this.stuck = !solution;
 +    if (solution) this.hinted = true;
@@ -179,23 +192,30 @@ index 6ac6f7f..b14187d 100644
 +    return this.hint;
 +  }
 +
-   finish() {
-     const par = this.levels[this.level].par;
--    const earned = stars(this.game.moves, par);
-+    const earned = stars(this.game.moves, par, this.hinted);
-     const best = Math.max(this.progress[this.level] ?? 0, earned);
-     this.progress[this.level] = best;
--    this.result = { moves: this.game.moves, par, stars: earned, best };
-+    this.result = { moves: this.game.moves, par, stars: earned, best, hinted: this.hinted };
+   finish(): void {
+     const game = this.game;
+     if (!game) return;
+     const level = this.pack.levels[this.level];
+-    const earned = stars(game.moves, level.par);
++    const earned = stars(game.moves, level.par, this.hinted);
+     const best = Math.max(this.progress[level.id] ?? 0, earned);
+     this.progress[level.id] = best;
+     this.result = {
+@@ -170,6 +192,7 @@ export class Session {
+       best,
+       levelId: level.id,
+       packId: this.pack.id,
++      hinted: this.hinted,
+     };
      this.screen = 'won';
      this.events.push({ type: 'complete', level: this.level, ...this.result });
-   }
-@@ -102,6 +124,8 @@ export class Session {
+@@ -179,6 +202,8 @@ export class Session {
      if (this.screen !== 'play' || !this.history.length) return false;
-     this.game = this.history.pop();
+     this.game = this.history.pop()!;
      this.queue = [];
 +    this.hint = null;
 +    this.stuck = false;
      this.busyUntil = now;
      this.events.push({ type: 'undo' });
      return true;
+

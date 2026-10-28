@@ -1,34 +1,65 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseLevel, move, T, cloneState } from '../src/rules.js';
-import { solve } from '../src/solver.js';
-import { LEVELS } from '../src/levels.js';
-import { Session, stars, moveDuration } from '../src/session.js';
+import { parseLevel, move, T, cloneState } from '../src/core/rules.ts';
+import type { Cell, Dir, GameState } from '../src/core/rules.ts';
+import { solve } from '../src/core/solver.ts';
+import { CORE_PACK, LEVELS, PACKS } from '../src/content/levels.ts';
+import { Session, stars, moveDuration } from '../src/core/session.ts';
 
-const at = (s, x, y) => s.tiles[y * s.w + x];
+const at = (s: GameState, x: number, y: number): number => s.tiles[y * s.w + x];
+
+function solutionOf(rows: string[]): Dir[] {
+  const r = solve(parseLevel(rows));
+  assert.ok(r.solution);
+  return r.solution;
+}
+
+function gameOf(ses: Session): GameState {
+  assert.ok(ses.game);
+  return ses.game;
+}
 
 // ------------------------------------------------------------------ the levels themselves
 
 test('every level is solvable, and its stated par is the true shortest solution', () => {
-  for (const [i, L] of LEVELS.entries()) {
-    const r = solve(parseLevel(L.rows));
-    assert.ok(r.solution, `level ${i + 1} (${L.name}) has no solution`);
-    assert.equal(r.solution.length, L.par, `level ${i + 1} (${L.name}): par ${L.par}, solver says ${r.solution.length}`);
+  for (const pack of PACKS) {
+    for (const [i, L] of pack.levels.entries()) {
+      const r = solve(parseLevel(L.rows));
+      assert.ok(r.solution, `${pack.id}/${L.id} (${i + 1}) has no solution`);
+      assert.equal(r.solution.length, L.par, `${pack.id}/${L.id}: par ${L.par}, solver says ${r.solution.length}`);
+    }
   }
 });
 
 test('replaying each solver solution through the rules actually wins', () => {
-  for (const L of LEVELS) {
-    const s = parseLevel(L.rows);
-    for (const d of solve(parseLevel(L.rows)).solution) assert.ok(move(s, d).moved);
-    assert.ok(s.won, L.name);
+  for (const pack of PACKS) {
+    for (const L of pack.levels) {
+      const s = parseLevel(L.rows);
+      for (const d of solutionOf(L.rows)) assert.ok(move(s, d).moved);
+      assert.ok(s.won, `${pack.id}/${L.id}`);
+    }
   }
 });
 
 test('every level that has crates needs them', () => {
-  for (const L of LEVELS.filter((l) => l.rows.join('').includes('B'))) {
-    const without = solve(parseLevel(L.rows.map((r) => r.replaceAll('B', '.'))));
-    assert.ok(!without.solution || without.solution.length > L.par, `${L.name} is solvable as fast without its crates`);
+  for (const pack of PACKS) {
+    for (const L of pack.levels.filter((l) => l.rows.join('').includes('B'))) {
+      const without = solve(parseLevel(L.rows.map((r) => r.replaceAll('B', '.'))));
+      assert.ok(!without.solution || without.solution.length > L.par, `${pack.id}/${L.id} is solvable as fast without its crates`);
+    }
+  }
+});
+
+test('level ids and pack ids are unique', () => {
+  const packs = new Set<string>();
+  const ids = new Set<string>();
+  for (const pack of PACKS) {
+    assert.ok(!packs.has(pack.id), `duplicate pack id ${pack.id}`);
+    packs.add(pack.id);
+    for (const level of pack.levels) {
+      assert.ok(!ids.has(level.id), `duplicate level id ${level.id}`);
+      ids.add(level.id);
+    }
   }
 });
 
@@ -111,61 +142,84 @@ test('stars: par or better is 3, within half again is 2, otherwise 1', () => {
   assert.equal(stars(9, 5), 1);
 });
 
+test('progress is keyed by level id, so inserting a room does not shift it', () => {
+  const ses = new Session({ pack: CORE_PACK, progress: { [CORE_PACK.levels[0].id]: 3 } });
+  assert.ok(ses.unlocked(1));
+  assert.ok(!ses.unlocked(2));
+});
+
+test('resume restores a position and starts a fresh undo baseline', () => {
+  const ses = new Session({ pack: CORE_PACK });
+  ses.start(1);
+  ses.input('up', 0);
+  const game = cloneState(gameOf(ses));
+  assert.equal(game.moves, 1);
+  const saved = new Session({ pack: CORE_PACK });
+  saved.resume(1, game);
+  assert.equal(saved.screen, 'play');
+  assert.equal(gameOf(saved).moves, 1);
+  assert.equal(saved.undo(0), false);
+});
+
 test('a move pressed mid-slide plays when the slide ends', () => {
-  const ses = new Session();
+  const ses = new Session({ pack: CORE_PACK });
   ses.start(1);
   ses.input('up', 0);
   const busy = ses.busyUntil;
   ses.input('left', 10);
   assert.deepEqual(ses.queue, ['left']);
   ses.tick(busy - 1);
-  assert.equal(ses.game.moves, 1);
+  assert.equal(gameOf(ses).moves, 1);
   ses.tick(busy);
-  assert.equal(ses.game.moves, 2);
+  assert.equal(gameOf(ses).moves, 2);
 });
 
 test('undo restores the previous state exactly, cracked ice included', () => {
-  const ses = new Session();
+  const ses = new Session({ pack: CORE_PACK });
   const i = LEVELS.findIndex((l) => l.name === 'Thin ice');
   ses.start(i);
-  const start = cloneState(ses.game);
+  const start = cloneState(gameOf(ses));
   let t = 0;
-  for (const d of solve(parseLevel(LEVELS[i].rows)).solution.slice(0, -1)) {
+  for (const d of solutionOf(LEVELS[i].rows).slice(0, -1)) {
     ses.input(d, t);
     t = ses.busyUntil;
   }
-  assert.notDeepEqual([...ses.game.tiles], [...start.tiles], 'some ice broke');
+  assert.notDeepEqual([...gameOf(ses).tiles], [...start.tiles], 'some ice broke');
   while (ses.undo(t));
-  assert.deepEqual([...ses.game.tiles], [...start.tiles]);
-  assert.deepEqual(ses.game.player, start.player);
-  assert.equal(ses.game.moves, 0);
+  assert.deepEqual([...gameOf(ses).tiles], [...start.tiles]);
+  assert.deepEqual(gameOf(ses).player, start.player);
+  assert.equal(gameOf(ses).moves, 0);
 });
 
 test('winning waits for the slide to finish, then scores and unlocks the next level', () => {
-  const ses = new Session();
+  const ses = new Session({ pack: CORE_PACK });
   ses.start(0);
   let t = 0;
-  for (const d of solve(parseLevel(LEVELS[0].rows)).solution) {
+  for (const d of solutionOf(LEVELS[0].rows)) {
     ses.input(d, t);
     t = ses.busyUntil;
   }
   assert.equal(ses.screen, 'play');
   ses.tick(t);
   assert.equal(ses.screen, 'won');
+  assert.ok(ses.result);
   assert.equal(ses.result.stars, 3);
   assert.ok(ses.unlocked(1));
   assert.ok(!ses.unlocked(2));
 });
 
 test('the input queue holds three presses and drops the rest', () => {
-  const ses = new Session();
+  const ses = new Session({ pack: CORE_PACK });
   ses.start(2);
   ses.input('left', 0);
-  for (const d of ['up', 'right', 'down', 'left', 'up']) ses.input(d, 1);
+  const dirs: Dir[] = ['up', 'right', 'down', 'left', 'up'];
+  for (const d of dirs) ses.input(d, 1);
   assert.deepEqual(ses.queue, ['up', 'right', 'down']);
 });
 
 test('animation length follows the distance slid', () => {
-  assert.equal(moveDuration([{ type: 'slide', path: [[0, 0], [1, 0]] }]), 110);
-  assert.equal(moveDuration([{ type: 'slide', path: Array.from({ length: 9 }, (_, i) => [i, 0]) }]), 440);
+  const short: Cell[] = [[0, 0], [1, 0]];
+  const long: Cell[] = Array.from({ length: 9 }, (_, i) => [i, 0]);
+  assert.equal(moveDuration([{ type: 'slide', dir: 'right', path: short }]), 110);
+  assert.equal(moveDuration([{ type: 'slide', dir: 'right', path: long }]), 440);
 });

@@ -3,19 +3,26 @@
 // solvable at its stated par, the level editor workflow checks new designs, and par is never
 // typed in by hand without the solver agreeing.
 
-import { move, cloneState, stateKey, DIRS } from './rules.js';
+import { move, cloneState, stateKey, DIRS } from './rules.ts';
+import type { Dir, GameState } from './rules.ts';
 
-const ORDER = Object.keys(DIRS);
+const ORDER = Object.keys(DIRS) as Dir[];
+type Parent = [string, Dir] | null;
+
+export interface SolveResult {
+  solution: Dir[] | null;
+  explored: number;
+}
 
 // Returns { solution: [dirs], explored } or { solution: null, explored } if no solution exists
 // within maxStates.
-export function solve(start, { maxStates = 200000 } = {}) {
+export function solve(start: GameState, { maxStates = 200000 }: { maxStates?: number } = {}): SolveResult {
   if (start.won) return { solution: [], explored: 1 };
-  const seen = new Map([[stateKey(start), null]]); // key -> [parentKey, dir]
-  let frontier = [start];
+  const seen = new Map<string, Parent>([[stateKey(start), null]]); // key -> [parentKey, dir]
+  let frontier: GameState[] = [start];
   let explored = 1;
   while (frontier.length) {
-    const next = [];
+    const next: GameState[] = [];
     for (const s of frontier) {
       const parentKey = stateKey(s);
       for (const dir of ORDER) {
@@ -35,8 +42,14 @@ export function solve(start, { maxStates = 200000 } = {}) {
   return { solution: null, explored };
 }
 
-function unwind(seen, key) {
-  const dirs = [];
-  for (let k = key; seen.get(k); k = seen.get(k)[0]) dirs.push(seen.get(k)[1]);
+function unwind(seen: Map<string, Parent>, key: string): Dir[] {
+  const dirs: Dir[] = [];
+  let k = key;
+  for (;;) {
+    const entry = seen.get(k);
+    if (!entry) break;
+    dirs.push(entry[1]);
+    k = entry[0];
+  }
   return dirs.reverse();
 }

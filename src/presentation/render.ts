@@ -1,6 +1,8 @@
 // Drawing only. Reads the session plus a small "view" of animation state; never changes the game.
 
-import { T } from './rules.js';
+import { T } from '../core/rules.ts';
+import type { Cell, GameState, Tile } from '../core/rules.ts';
+import type { Session } from '../core/session.ts';
 
 export const W = 960;
 export const H = 540;
@@ -9,7 +11,7 @@ const TAU = Math.PI * 2;
 export const FONT = {
   serif: '"Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif',
   mono: 'ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
-};
+} as const;
 
 export const C = {
   bg: '#dfe9f0',
@@ -31,9 +33,94 @@ export const C = {
   dim: '#6d7f8d',
   warm: '#e8893a',
   scarf: '#c8402c',
-};
+} as const;
 
-export function text(ctx, str, x, y, { size = 14, font = FONT.mono, color = C.ink, align = 'left', baseline = 'middle', weight = '', style = '', alpha = 1, spacing = 0 } = {}) {
+export interface Particle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  max: number;
+  size: number;
+  color: string;
+}
+
+export interface Crate {
+  x: number;
+  y: number;
+}
+
+export interface Anim {
+  who: 'player' | Crate | null;
+  path: Cell[];
+  t0: number;
+  dur: number;
+  sink?: boolean;
+  done?: boolean;
+}
+
+export interface Scheduled {
+  at: number;
+  run: () => void;
+  done?: boolean;
+}
+
+export interface View {
+  tiles: Uint8Array;
+  crates: Crate[];
+  player: { x: number; y: number };
+  face: Cell;
+  squash: number;
+  particles: Particle[];
+  anims: Anim[];
+  scheduled: Scheduled[];
+}
+
+export interface Button {
+  id: string;
+  label: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface CellRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface SelectUi {
+  packs: { name: string }[];
+  packIndex: number;
+  packRects: CellRect[];
+  settingsRect: CellRect;
+  continueRect: CellRect | null;
+  continueLabel: string | null;
+}
+
+export interface TextOptions {
+  size?: number;
+  font?: string;
+  color?: string;
+  align?: CanvasTextAlign;
+  baseline?: CanvasTextBaseline;
+  weight?: string;
+  style?: string;
+  alpha?: number;
+  spacing?: number;
+}
+
+export function text(
+  ctx: CanvasRenderingContext2D,
+  str: string,
+  x: number,
+  y: number,
+  { size = 14, font = FONT.mono, color = C.ink, align = 'left', baseline = 'middle', weight = '', style = '', alpha = 1, spacing = 0 }: TextOptions = {},
+): void {
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.font = `${style} ${weight} ${size}px ${font}`;
@@ -46,12 +133,12 @@ export function text(ctx, str, x, y, { size = 14, font = FONT.mono, color = C.in
 }
 
 // Board placement for a level: tile size and top-left corner.
-export function layout(game) {
+export function layout(game: GameState): { size: number; ox: number; oy: number } {
   const size = Math.floor(Math.min(64, 900 / game.w, 400 / game.h));
   return { size, ox: Math.round((W - game.w * size) / 2), oy: Math.round(70 + (420 - game.h * size) / 2) };
 }
 
-export function drawBackground(ctx, time) {
+export function drawBackground(ctx: CanvasRenderingContext2D, time: number): void {
   const g = ctx.createLinearGradient(0, 0, 0, H);
   g.addColorStop(0, C.bg);
   g.addColorStop(1, C.bgDeep);
@@ -66,7 +153,7 @@ export function drawBackground(ctx, time) {
   }
 }
 
-function drawTile(ctx, t, x, y, s, time, i) {
+function drawTile(ctx: CanvasRenderingContext2D, t: Tile, x: number, y: number, s: number, time: number, i: number): void {
   switch (t) {
     case T.ROCK: {
       ctx.fillStyle = C.rockLo;
@@ -127,7 +214,7 @@ function drawTile(ctx, t, x, y, s, time, i) {
   }
 }
 
-function drawExit(ctx, cx, cy, s, time) {
+function drawExit(ctx: CanvasRenderingContext2D, cx: number, cy: number, s: number, time: number): void {
   const pulse = 1 + Math.sin(time * 3) * 0.06;
   ctx.save();
   ctx.translate(cx, cy);
@@ -147,7 +234,7 @@ function drawExit(ctx, cx, cy, s, time) {
   ctx.restore();
 }
 
-function drawCrate(ctx, x, y, s) {
+function drawCrate(ctx: CanvasRenderingContext2D, x: number, y: number, s: number): void {
   const m = s * 0.12;
   ctx.fillStyle = C.crateLo;
   ctx.fillRect(x + m, y + m, s - 2 * m, s - 2 * m);
@@ -163,7 +250,7 @@ function drawCrate(ctx, x, y, s) {
   ctx.fillRect(x + m, y + m, s - 2 * m, 3);
 }
 
-function drawPlayer(ctx, x, y, s, face, squash) {
+function drawPlayer(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, face: Cell, squash: number): void {
   const cx = x + s / 2;
   const cy = y + s / 2;
   const r = s * 0.3;
@@ -191,12 +278,13 @@ function drawPlayer(ctx, x, y, s, face, squash) {
   ctx.restore();
 }
 
-export function drawBoard(ctx, ses, v, time) {
+export function drawBoard(ctx: CanvasRenderingContext2D, ses: Session, v: View, time: number): void {
   const g = ses.game;
+  if (!g) return;
   const { size: s, ox, oy } = layout(g);
   ctx.fillStyle = 'rgba(30,42,53,0.12)';
   ctx.fillRect(ox + 6, oy + 8, g.w * s, g.h * s);
-  for (let y = 0; y < g.h; y++) for (let x = 0; x < g.w; x++) drawTile(ctx, v.tiles[y * g.w + x], ox + x * s, oy + y * s, s, time, y * g.w + x);
+  for (let y = 0; y < g.h; y++) for (let x = 0; x < g.w; x++) drawTile(ctx, v.tiles[y * g.w + x] as Tile, ox + x * s, oy + y * s, s, time, y * g.w + x);
   for (const c of v.crates) drawCrate(ctx, ox + c.x * s, oy + c.y * s, s);
   drawPlayer(ctx, ox + v.player.x * s, oy + v.player.y * s, s, v.face, v.squash);
   for (const p of v.particles) {
@@ -207,12 +295,14 @@ export function drawBoard(ctx, ses, v, time) {
   ctx.globalAlpha = 1;
 }
 
-export function drawHud(ctx, ses, buttons) {
+export function drawHud(ctx: CanvasRenderingContext2D, ses: Session, buttons: Button[]): void {
+  const g = ses.game;
+  if (!g) return;
   const L = ses.levels[ses.level];
   text(ctx, `${ses.level + 1}`, 28, 34, { size: 28, weight: 'bold', font: FONT.serif });
   text(ctx, L.name, 60, 28, { size: 18, font: FONT.serif, style: 'italic' });
-  text(ctx, `moves ${ses.game.moves}  ·  par ${L.par}`, 60, 48, { size: 12, color: C.dim });
-  if (L.note && ses.game.moves === 0) text(ctx, L.note, W / 2, H - 26, { size: 15, align: 'center', font: FONT.serif, style: 'italic', color: C.dim });
+  text(ctx, `moves ${g.moves}  ·  par ${L.par}`, 60, 48, { size: 12, color: C.dim });
+  if (L.note && g.moves === 0) text(ctx, L.note, W / 2, H - 26, { size: 15, align: 'center', font: FONT.serif, style: 'italic', color: C.dim });
   for (const b of buttons) {
     ctx.fillStyle = 'rgba(255,255,255,0.55)';
     ctx.fillRect(b.x, b.y, b.w, b.h);
@@ -222,7 +312,7 @@ export function drawHud(ctx, ses, buttons) {
   }
 }
 
-export function drawStars(ctx, cx, cy, n, size, max = 3) {
+export function drawStars(ctx: CanvasRenderingContext2D, cx: number, cy: number, n: number, size: number, max = 3): void {
   for (let k = 0; k < max; k++) {
     const x = cx + (k - (max - 1) / 2) * size * 2.4;
     ctx.fillStyle = k < n ? C.warm : 'rgba(30,42,53,0.15)';
@@ -237,9 +327,24 @@ export function drawStars(ctx, cx, cy, n, size, max = 3) {
   }
 }
 
-export function drawSelect(ctx, ses, cursor, cells, time) {
-  text(ctx, 'THAW', W / 2, 76, { size: 54, align: 'center', font: FONT.serif, weight: 'bold', spacing: 12 });
-  text(ctx, 'slide to the hut. ice keeps you going, snow stops you.', W / 2, 118, { size: 15, align: 'center', font: FONT.serif, style: 'italic', color: C.dim });
+function drawUiButton(ctx: CanvasRenderingContext2D, r: CellRect, label: string, active = false): void {
+  ctx.fillStyle = active ? '#ffffff' : 'rgba(255,255,255,0.45)';
+  ctx.fillRect(r.x, r.y, r.w, r.h);
+  ctx.strokeStyle = active ? C.warm : 'rgba(30,42,53,0.2)';
+  ctx.lineWidth = active ? 2 : 1;
+  ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1);
+  text(ctx, label, r.x + r.w / 2, r.y + r.h / 2 + 1, { size: 12, align: 'center', color: active ? C.ink : C.dim });
+}
+
+export function drawSelect(ctx: CanvasRenderingContext2D, ses: Session, cursor: number, cells: CellRect[], time: number, ui: SelectUi): void {
+  text(ctx, 'THAW', W / 2, 66, { size: 50, align: 'center', font: FONT.serif, weight: 'bold', spacing: 12 });
+  text(ctx, 'slide to the hut. ice keeps you going, snow stops you.', W / 2, 104, { size: 15, align: 'center', font: FONT.serif, style: 'italic', color: C.dim });
+  ui.packs.forEach((pack, i) => {
+    const r = ui.packRects[i];
+    if (r) drawUiButton(ctx, r, pack.name, i === ui.packIndex);
+  });
+  drawUiButton(ctx, ui.settingsRect, 'settings');
+  if (ui.continueRect && ui.continueLabel) drawUiButton(ctx, ui.continueRect, ui.continueLabel, true);
   cells.forEach((c, i) => {
     const open = ses.unlocked(i);
     const hot = i === cursor;
@@ -250,19 +355,20 @@ export function drawSelect(ctx, ses, cursor, cells, time) {
     ctx.strokeRect(c.x + 0.5, c.y + 0.5, c.w - 1, c.h - 1);
     text(ctx, `${i + 1}`, c.x + 14, c.y + 22, { size: 20, weight: 'bold', font: FONT.serif, color: open ? C.ink : C.dim });
     text(ctx, open ? ses.levels[i].name : 'locked', c.x + 14, c.y + 48, { size: 12, font: FONT.serif, style: 'italic', color: open ? C.ink : C.dim });
-    if (open) drawStars(ctx, c.x + c.w - 36, c.y + 22, ses.progress[i] ?? 0, 6);
+    if (open) drawStars(ctx, c.x + c.w - 36, c.y + 22, ses.progress[ses.levels[i].id] ?? 0, 6);
   });
-  text(ctx, 'arrows to choose · enter to play · z undo · r restart · esc levels', W / 2, H - 28, { size: 12, align: 'center', color: C.dim, alpha: 0.7 + 0.3 * Math.sin(time * 2) });
+  text(ctx, 'arrows choose · enter play · [ ] pack · c continue · o settings', W / 2, H - 22, { size: 12, align: 'center', color: C.dim, alpha: 0.7 + 0.3 * Math.sin(time * 2) });
 }
 
-export function drawWon(ctx, ses, t) {
+export function drawWon(ctx: CanvasRenderingContext2D, ses: Session, t: number): void {
+  const r = ses.result;
+  if (!r) return;
   const a = Math.min(1, t * 3);
   ctx.save();
   ctx.globalAlpha = a * 0.85;
   ctx.fillStyle = '#f4f8fb';
   ctx.fillRect(W / 2 - 200, 150, 400, 230);
   ctx.restore();
-  const r = ses.result;
   text(ctx, 'warm at last.', W / 2, 190, { size: 26, align: 'center', font: FONT.serif, style: 'italic', alpha: a });
   drawStars(ctx, W / 2, 245, Math.min(r.stars, Math.floor(t * 6)), 18);
   text(ctx, `${r.moves} moves  ·  par ${r.par}`, W / 2, 294, { size: 14, align: 'center', alpha: a });
@@ -270,8 +376,8 @@ export function drawWon(ctx, ses, t) {
   text(ctx, last ? 'enter: finish  ·  r: retry' : 'enter: next  ·  r: retry  ·  esc: levels', W / 2, 346, { size: 12, align: 'center', color: C.dim, alpha: a });
 }
 
-export function drawDone(ctx, ses) {
-  const total = ses.levels.reduce((n, _, i) => n + (ses.progress[i] ?? 0), 0);
+export function drawDone(ctx: CanvasRenderingContext2D, ses: Session): void {
+  const total = ses.levels.reduce((n, level) => n + (ses.progress[level.id] ?? 0), 0);
   text(ctx, 'every room thawed.', W / 2, 220, { size: 34, align: 'center', font: FONT.serif, style: 'italic' });
   text(ctx, `${total} of ${ses.levels.length * 3} stars`, W / 2, 270, { size: 16, align: 'center' });
   text(ctx, 'esc: back to the levels', W / 2, 320, { size: 12, align: 'center', color: C.dim });

@@ -8,7 +8,7 @@ from playwright.sync_api import sync_playwright
 OUT = sys.argv[1] if len(sys.argv) > 1 else '.'
 BASE = sys.argv[2] if len(sys.argv) > 2 else 'http://localhost:8080'
 KEYS = {'up': 'ArrowUp', 'down': 'ArrowDown', 'left': 'ArrowLeft', 'right': 'ArrowRight'}
-SOLVE = """async () => { const { solve } = await import('/src/solver.js'); const { parseLevel } = await import('/src/rules.js');
+SOLVE = """async () => { const { solve } = await import('/dist/core/solver.js'); const { parseLevel } = await import('/dist/core/rules.js');
   const g = window.__thaw; return solve(parseLevel(g.ses.levels[g.ses.level].rows)).solution; }"""
 errors = []
 fails = []

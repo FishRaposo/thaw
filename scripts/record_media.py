@@ -6,7 +6,7 @@ from playwright.sync_api import sync_playwright
 OUT = sys.argv[1]
 BASE = sys.argv[2] if len(sys.argv) > 2 else 'http://localhost:8080'
 KEYS = {'up': 'ArrowUp', 'down': 'ArrowDown', 'left': 'ArrowLeft', 'right': 'ArrowRight'}
-SOLVE = """async () => { const { solve } = await import('/src/solver.js'); const { parseLevel } = await import('/src/rules.js');
+SOLVE = """async () => { const { solve } = await import('/dist/core/solver.js'); const { parseLevel } = await import('/dist/core/rules.js');
   const g = window.__thaw; return solve(parseLevel(g.ses.levels[g.ses.level].rows)).solution; }"""
 
 with sync_playwright() as p:
@@ -18,7 +18,7 @@ with sync_playwright() as p:
     pg.wait_for_timeout(1500)
     pg.screenshot(path=f'{OUT}/select-empty.png')
     # Unlock everything for the recording, then play a few rooms at a human pace.
-    pg.evaluate('() => { const s = window.__thaw.ses; s.progress = Object.fromEntries(s.levels.map((_, i) => [i, i < 9 ? 3 : 0])); }')
+    pg.evaluate('() => { const s = window.__thaw.ses; s.progress = Object.fromEntries(s.levels.map((l, i) => [l.id, i < 9 ? 3 : 0])); }')
     for lvl in (5, 8, 10):
         pg.evaluate(f'() => window.__thaw.ses.start({lvl})')
         pg.wait_for_timeout(700)

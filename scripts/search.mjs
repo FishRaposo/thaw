@@ -2,8 +2,8 @@
 // uses the requested mechanic (and, for crates, only when the crates are actually needed).
 // Candidates are printed for a human to pick from; nothing here writes levels.js.
 // Usage: node scripts/search.mjs <rock|crate|water|crack|crate-crack> <minPar> <maxPar> <count> <seed>
-import { parseLevel, move, cloneState } from '../src/rules.js';
-import { solve } from '../src/solver.js';
+import { parseLevel, move, cloneState } from '../src/core/rules.ts';
+import { solve } from '../src/core/solver.ts';
 const [mech, minPar, maxPar, count, seed0] = [process.argv[2], +process.argv[3], +process.argv[4], +process.argv[5], +process.argv[6] || 1];
 let seed = seed0;
 const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };

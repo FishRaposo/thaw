@@ -1,15 +1,15 @@
 // Criteria for the hint. Driven through the Session, the same object the game screen uses.
 export default async function check(src) {
-  const { Session } = await import(src + 'session.js');
-  const { LEVELS } = await import(src + 'levels.js');
-  const { parseLevel, move, cloneState } = await import(src + 'rules.js');
-  const { solve } = await import(src + 'solver.js');
+  const { Session } = await import(src + 'core/session.js');
+  const { CORE_PACK, LEVELS } = await import(src + 'content/levels.js');
+  const { parseLevel, move, cloneState } = await import(src + 'core/rules.js');
+  const { solve } = await import(src + 'core/solver.js');
   const fail = [];
   const ask = (ses) => (typeof ses.requestHint === 'function' ? ses.requestHint() : undefined);
 
   // 1. Following hints from the start solves every level in exactly par moves.
   for (const [i, L] of LEVELS.entries()) {
-    const ses = new Session({ progress: {} });
+    const ses = new Session({ pack: CORE_PACK, progress: {} });
     ses.start(i);
     let t = 0;
     for (let k = 0; k < 40 && ses.screen === 'play'; k++) {
@@ -26,7 +26,7 @@ export default async function check(src) {
   }
 
   // 3. A hint picks up from where you are, not from the start: make one wrong move first.
-  const ses = new Session({ progress: {} });
+  const ses = new Session({ pack: CORE_PACK, progress: {} });
   const k = LEVELS.findIndex((l) => l.name === 'Long way round');
   ses.start(k);
   const first = solve(parseLevel(LEVELS[k].rows)).solution[0];
@@ -43,7 +43,7 @@ export default async function check(src) {
 
   // 4. From a dead end, the hint says there's no way out rather than suggesting a move.
   const thin = LEVELS.findIndex((l) => l.name === 'Thin ice');
-  const dead = new Session({ progress: {} });
+  const dead = new Session({ pack: CORE_PACK, progress: {} });
   dead.start(thin);
   let found = false;
   const tryPath = (path) => {

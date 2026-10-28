@@ -2,14 +2,14 @@
 // count, and the ice itself (cracked tiles your move broke are whole again; a crate that sank
 // comes back and its hole is open water again).
 export default async function check(src) {
-  const { Session } = await import(src + 'session.js');
-  const { LEVELS } = await import(src + 'levels.js');
-  const { parseLevel, cloneState } = await import(src + 'rules.js');
-  const { solve } = await import(src + 'solver.js');
+  const { Session } = await import(src + 'core/session.js');
+  const { CORE_PACK, LEVELS } = await import(src + 'content/levels.js');
+  const { parseLevel, cloneState } = await import(src + 'core/rules.js');
+  const { solve } = await import(src + 'core/solver.js');
   const problems = [];
   for (const name of ['Thin ice', 'Bridge', 'Crack and kick']) {
     const i = LEVELS.findIndex((l) => l.name === name);
-    const ses = new Session({ progress: {} });
+    const ses = new Session({ pack: CORE_PACK, progress: {} });
     ses.start(i);
     const snaps = [cloneState(ses.game)];
     let t = 0;

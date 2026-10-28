@@ -1,13 +1,13 @@
 // Criteria: presses made during the winning slide are not carried into the next level (or a
 // restart). Every level starts with the player on @, zero moves, nothing queued.
 export default async function check(src) {
-  const { Session } = await import(src + 'session.js');
-  const { LEVELS } = await import(src + 'levels.js');
-  const { parseLevel, move, cloneState } = await import(src + 'rules.js');
-  const { solve } = await import(src + 'solver.js');
+  const { Session } = await import(src + 'core/session.js');
+  const { CORE_PACK, LEVELS } = await import(src + 'content/levels.js');
+  const { parseLevel, move, cloneState } = await import(src + 'core/rules.js');
+  const { solve } = await import(src + 'core/solver.js');
   const problems = [];
 
-  const ses = new Session({ progress: {} });
+  const ses = new Session({ pack: CORE_PACK, progress: {} });
   ses.start(0);
   let t = 0;
   const sol = solve(parseLevel(LEVELS[0].rows)).solution;
@@ -31,7 +31,7 @@ export default async function check(src) {
   }
 
   // Same through restart: queue presses mid-slide, then restart.
-  const r = new Session({ progress: {} });
+  const r = new Session({ pack: CORE_PACK, progress: {} });
   r.start(2);
   const moving = ['up', 'right', 'down', 'left'].filter((d) => move(cloneState(r.game), d).moved);
   r.input(moving[0], 0);
