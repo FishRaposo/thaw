@@ -5,6 +5,11 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    ignore:
+      # playwright-core 1.64.x fails the firefox browser journey on current main
+      # (proven on fresh-base CI 2026-10-30); revisit on the next minor/major
+      - dependency-name: "playwright-core"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
