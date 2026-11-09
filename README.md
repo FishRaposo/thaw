@@ -112,7 +112,7 @@ tasks/            the task pack and its verifier
 
 - Seventeen rooms in two packs. The search tool can propose more, but each one is picked by hand.
 - Smoke-tested in Chromium, Firefox and WebKit. WebKit-on-Linux is a compatibility check, not Safari-on-macOS proof.
-- No key rebinding or colour-blind palette yet; reduced motion and volume are available.
+- No key rebinding or colour-blind palette yet; reduced motion and volume are available. The game has no screen shake or flashes, so it has no shake/flash sliders.
 - The save stores the current room, not the undo history.
 
 ## License
