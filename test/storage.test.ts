@@ -87,3 +87,35 @@ test('legacy mute preference migrates into settings', () => {
   storage.setItem('thaw.muted.v1', '1');
   assert.equal(loadSettings().muted, true);
 });
+
+test('blocked storage plays on without persistence', () => {
+  const boom = (): never => {
+    throw new Error('SecurityError: storage is blocked');
+  };
+  (globalThis as { localStorage: Storage }).localStorage = {
+    get length(): number { return boom(); },
+    clear: boom,
+    getItem: boom,
+    key: boom,
+    removeItem: boom,
+    setItem: boom,
+  } as unknown as Storage;
+
+  assert.equal(loadProgress(), null);
+  assert.equal(loadLegacyProgress(), null);
+  assert.equal(loadSave(), null);
+  assert.equal(loadSettings().version, 1);
+  assert.doesNotThrow(() => saveProgress({ 'long-thaw': { glide: 3 } }));
+  assert.doesNotThrow(() => saveRun({
+    version: 1, packId: 'long-thaw', levelId: 'glide', levelIndex: 0,
+    tiles: Array.from({ length: 40 }, () => 1), player: { x: 1, y: 1 },
+    crates: [], moves: 0, savedAt: 0,
+  }));
+  assert.doesNotThrow(() => clearSave());
+  assert.doesNotThrow(() => saveSettings(defaultSettings()));
+
+  delete (globalThis as { localStorage?: Storage }).localStorage;
+  assert.equal(loadProgress(), null);
+  assert.equal(loadSave(), null);
+  assert.equal(loadSettings().version, 1);
+});
